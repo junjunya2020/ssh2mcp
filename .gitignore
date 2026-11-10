@@ -6,3 +6,6 @@ e2e-pool.out
 e2e-http.out
 service/generated/
 .sshmcp-test/
+
+# cloudflared 二进制不入库（各机自行放置）
+bin/

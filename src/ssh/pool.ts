@@ -42,10 +42,11 @@ export class ConnectionPool {
   constructor(
     private cfg: AppConfig,
     private audit: Audit,
+    knownHostsPath?: string,
   ) {
     this.guard = new SafetyGuard();
     this.truncator = new OutputTruncator(cfg.maxOutputBytes);
-    this.hostKey = new HostKeyVerifier(cfg);
+    this.hostKey = new HostKeyVerifier(cfg, knownHostsPath);
   }
 
   private buildConnectConfig(entry: HostEntry): ConnectConfig {

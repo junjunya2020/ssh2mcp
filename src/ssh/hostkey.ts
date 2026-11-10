@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import crypto from "node:crypto";
 import type { AppConfig } from "../types.js";
 import { paths, ensureDir } from "../paths.js";
@@ -12,12 +13,13 @@ import { paths, ensureDir } from "../paths.js";
  */
 export class HostKeyVerifier {
   private known = new Map<string, string>();
+  private storePath: string;
 
-  constructor(private cfg: AppConfig) {
-    const p = paths(cfg.dataDir);
-    ensureDir(cfg.dataDir);
-    if (fs.existsSync(p.knownHosts)) {
-      for (const line of fs.readFileSync(p.knownHosts, "utf-8").split("\n")) {
+  constructor(private cfg: AppConfig, knownHostsPath?: string) {
+    this.storePath = knownHostsPath ?? paths(cfg.dataDir).knownHosts;
+    ensureDir(path.dirname(this.storePath));
+    if (fs.existsSync(this.storePath)) {
+      for (const line of fs.readFileSync(this.storePath, "utf-8").split("\n")) {
         const [k, v] = line.trim().split(" ");
         if (k && v) this.known.set(k, v);
       }
@@ -49,6 +51,6 @@ export class HostKeyVerifier {
 
   private persist(): void {
     const lines = [...this.known.entries()].map(([k, v]) => `${k} ${v}`).join("\n") + "\n";
-    fs.writeFileSync(paths(this.cfg.dataDir).knownHosts, lines, { mode: 0o600 });
+    fs.writeFileSync(this.storePath, lines, { mode: 0o600 });
   }
 }

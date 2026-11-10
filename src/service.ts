@@ -30,6 +30,7 @@ export function winswXml(): string {
   <logpath>${path.join(cfg.dataDir, "logs")}</logpath>
   <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>8</keepFiles></log>
   <env name="SSHMCP_DATA_DIR" value="${cfg.dataDir}"/>
+  <env name="SSHMCP_SERVICE" value="1"/>
 </service>
 `;
 }
@@ -47,6 +48,7 @@ Wants=network-online.target
 Type=simple
 ExecStart=${exe} ${main} daemon --foreground
 Environment=SSHMCP_DATA_DIR=${cfg.dataDir}
+Environment=SSHMCP_SERVICE=1
 Restart=always
 RestartSec=3
 WorkingDirectory=${projectRoot}

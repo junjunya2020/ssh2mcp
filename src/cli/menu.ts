@@ -170,17 +170,20 @@ async function opCf(p: Prompter): Promise<void> {
     const st = await adminRequest(cfg, "GET", "/admin/tunnel");
     const s = st.json ?? {};
     const auto = !!s.autoStart;
+    const mode = s.mode || "quick";
     process.stdout.write(
-      "\n--- 连接 CF（免登录临时隧道 + 假 OAuth）---\n" +
+      "\n--- 连接 CF（公网隧道 + 假 OAuth）---\n" +
         `  cloudflared: ${s.binary || "(未找到 bin/cloudflared.exe)"}\n` +
+        `  隧道模式  : ${mode === "named" ? `自定义域名 ${s.customUrl}` : "免登录临时域名(quick)"}\n` +
         `  自动随daemon开: ${auto ? "已开启（每次启动换新 URL）" : "关闭"}\n` +
         `  隧道状态  : ${s.running ? `运行中 ${s.url}` : "未运行"}\n` +
         (s.running
           ? ""
-          : "  1. 立即启动公网隧道（本次临时，自动分配 *.trycloudflare.com）\n") +
+          : "  1. 立即启动公网隧道（本次临时）\n") +
         (s.running ? "  2. 停止隧道\n" : "") +
         `  3. 显示 OAuth / MCP 接入地址\n` +
         `  4. ${auto ? "关闭" : "开启"}「默认随 daemon 自动开隧道」（改完需重启 daemon）\n` +
+        `  5. 设置${mode === "named" ? "回" : ""}自定义域名（named，需自己在 CF 绑 DNS）\n` +
         "  0. 返回\n",
     );
     const c = (await p.ask("选择: ")).trim();
@@ -235,6 +238,40 @@ async function opCf(p: Prompter): Promise<void> {
       process.stdout.write(
         `✓ 已${r.json.autoStart ? "开启" : "关闭"}「默认随 daemon 自动开隧道」。\n` +
           `  ${r.json.autoStart ? "请重启 daemon 生效——之后每次启动都会开一个全新的隧道（URL 每次都变）" : "重启 daemon 后生效（之后启动不再自动开）"}。\n`,
+      );
+      continue;
+    }
+
+    if (c === "5") {
+      if (mode === "named") {
+        const back = (await p.ask("当前是自定义域名模式，输入 1 切回免登录临时域名，其它键返回: ")).trim();
+        if (back === "1") {
+          const r = await adminRequest(cfg, "POST", "/admin/tunnel/mode", { mode: "quick" });
+          process.stdout.write(`✓ 已切回免登录临时域名（重启 daemon 生效）\n`);
+          continue;
+        }
+        continue;
+      }
+      process.stdout.write(
+        "\n自定义域名（named）需要你先把 CF 上的域名 CNAME 到 tunnel，并在本机 `cloudflared service install <token>`。\n",
+      );
+      const url = (await p.ask("输入自定义公网地址(如 https://mcp.example.com): ")).trim();
+      if (!/^https:\/\//.test(url)) {
+        process.stdout.write("✗ 必须是 https:// 开头\n");
+        continue;
+      }
+      const r = await adminRequest(cfg, "POST", "/admin/tunnel/mode", {
+        mode: "named",
+        customUrl: url,
+      });
+      if (r.status !== 200) {
+        process.stdout.write(`✗ ${JSON.stringify(r.json)}\n`);
+        continue;
+      }
+      process.stdout.write(
+        `✓ 已设为自定义域名 ${r.json.customUrl}（重启 daemon 生效）。\n` +
+          `  前提：CF 后台已建 tunnel 并把该域名 CNAME 到 <tunnel-id>.cfargotunnel.com，\n` +
+          `        且已 \`cloudflared service install <token>\`（或设环境变量 SSHMCP_CF_TUNNEL=<tunnel名>）。\n`,
       );
       continue;
     }

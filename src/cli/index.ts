@@ -125,6 +125,26 @@ export async function runCli(argv: string[]): Promise<void> {
       );
       return;
     }
+    if (act === "mode") {
+      const m = (rest[0] || "").toLowerCase();
+      if (m === "named") {
+        const url = rest[1];
+        if (!url || !/^https:\/\//.test(url)) {
+          process.stdout.write("用法: sshmcp cf mode named https://mcp.example.com\n");
+          return;
+        }
+        const r = await adminRequest(cfg, "POST", "/admin/tunnel/mode", { mode: "named", customUrl: url });
+        process.stdout.write(`✓ 已设为自定义域名 ${r.json?.customUrl}（重启 daemon 生效）\n`);
+        return;
+      }
+      if (m === "quick") {
+        await adminRequest(cfg, "POST", "/admin/tunnel/mode", { mode: "quick" });
+        process.stdout.write("✓ 已切回免登录临时域名（重启 daemon 生效）\n");
+        return;
+      }
+      process.stdout.write("用法: sshmcp cf mode quick | sshmcp cf mode named https://你的域名\n");
+      return;
+    }
     // status
     const r = await adminRequest(cfg, "GET", "/admin/tunnel");
     const st = r.json ?? {};

@@ -26,7 +26,11 @@ async function main() {
 
   if (cmd === "daemon") {
     const f = parseFlags(rest);
-    await runDaemon({ port: f.port ? Number(f.port) : undefined, foreground: !!f.foreground });
+    await runDaemon({
+      port: f.port ? Number(f.port) : undefined,
+      foreground: !!f.foreground,
+      oneshot: !!f.oneshot,
+    });
     return;
   }
 

@@ -27,21 +27,29 @@ interface SessionRec {
 /** 空闲会话回收：12h 无请求即销毁并释放其上 SSH 连接 */
 const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
 
-export function createApp(cfg: AppConfig, pool: ConnectionPool, tunnel?: TunnelManager) {
+export function createApp(
+  cfg: AppConfig,
+  pool: ConnectionPool,
+  tunnel?: TunnelManager,
+  opts: { fileLog?: boolean } = {},
+) {
   const app = express();
   app.set("trust proxy", true);
   app.use(express.json({ limit: "4mb" }));
 
   // 访问日志：同时写前台 stdout 和 dataDir/sshmcp.log（排查客户端行为用）
+  // fileLog=false 时只打 stdout，不落文件（一次性模式用，避免锁住临时目录）
   const logFile = path.join(cfg.dataDir, "sshmcp.log");
   let logStream: fs.WriteStream | undefined;
-  try {
-    logStream = fs.createWriteStream(logFile, { flags: "a" });
-    logStream.on("error", () => {
+  if (opts.fileLog !== false) {
+    try {
+      logStream = fs.createWriteStream(logFile, { flags: "a" });
+      logStream.on("error", () => {
+        logStream = undefined;
+      });
+    } catch {
       logStream = undefined;
-    });
-  } catch {
-    logStream = undefined;
+    }
   }
   const logLine = (line: string) => {
     process.stdout.write(line);
@@ -347,6 +355,8 @@ h1{font-size:20px}code{background:#f1f3f5;padding:2px 6px;border-radius:5px;font
     res.json({
       ...(tunnel ? tunnel.status() : { running: false, reason: "tunnel manager not attached" }),
       autoStart: cfg.tunnelAutoStart ?? false,
+      mode: cfg.tunnelMode ?? "quick",
+      customUrl: cfg.tunnelCustomUrl ?? "",
     });
   });
   // 设置「daemon 启动时自动开隧道」开关（持久化到 config，需重启 daemon 生效）
@@ -355,6 +365,24 @@ h1{font-size:20px}code{background:#f1f3f5;padding:2px 6px;border-radius:5px;font
     cfg.tunnelAutoStart = on;
     saveConfig(cfg);
     res.json({ autoStart: on, effective: "next-daemon-start" });
+  });
+  // 设置隧道模式：quick(免登录临时) / named(自定义域名，需 CF 绑 DNS)
+  app.post("/admin/tunnel/mode", (req, res) => {
+    const b = (req.body ?? {}) as { mode?: string; customUrl?: string };
+    if (b.mode === "named") {
+      if (!b.customUrl || !/^https:\/\//.test(b.customUrl)) {
+        res.status(400).json({ error: "named 模式需要 https 自定义域名（customUrl）" });
+        return;
+      }
+      cfg.tunnelMode = "named";
+      cfg.tunnelCustomUrl = b.customUrl.replace(/\/+$/, "");
+    } else {
+      cfg.tunnelMode = "quick";
+      cfg.tunnelCustomUrl = "";
+    }
+    saveConfig(cfg);
+    if (tunnel) tunnel.setOptions({ mode: cfg.tunnelMode, customUrl: cfg.tunnelCustomUrl });
+    res.json({ mode: cfg.tunnelMode, customUrl: cfg.tunnelCustomUrl, effective: "next-tunnel-start" });
   });
   app.post("/admin/tunnel/start", async (_req, res) => {
     if (!tunnel) return res.status(500).json({ error: "tunnel manager not attached" });
@@ -383,6 +411,16 @@ h1{font-size:20px}code{background:#f1f3f5;padding:2px 6px;border-radius:5px;font
   app.get("/admin/push", (_req, res) => {
     res.json({ listeners: hub.totalListeners(), subscriptions: subs.list() });
   });
+
+  // 供一次性模式退出前关闭日志句柄（否则 Windows 会因句柄未释放而删不掉临时目录）
+  (app as unknown as { closeLog: () => void }).closeLog = () => {
+    try {
+      logStream?.end();
+      logStream = undefined;
+    } catch {
+      /* ignore */
+    }
+  };
 
   return app;
 }

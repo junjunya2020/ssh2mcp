@@ -22,6 +22,8 @@ export function getConfig(forceReload = false): AppConfig {
       safetyGuard: true,
       strictHostKey: false,
       tunnelAutoStart: false,
+      tunnelMode: "quick",
+      tunnelCustomUrl: "",
       dataDir,
     };
     fs.writeFileSync(p.config, JSON.stringify(cfg, null, 2), { mode: 0o600 });
@@ -40,6 +42,8 @@ export function getConfig(forceReload = false): AppConfig {
     safetyGuard: raw.safetyGuard ?? true,
     strictHostKey: raw.strictHostKey ?? false,
     tunnelAutoStart: raw.tunnelAutoStart ?? false,
+    tunnelMode: raw.tunnelMode === "named" ? "named" : "quick",
+    tunnelCustomUrl: raw.tunnelCustomUrl ?? "",
     dataDir: raw.dataDir ?? dataDir,
   };
   cached = cfg;

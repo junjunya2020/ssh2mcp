@@ -30,9 +30,25 @@ npm run build
 ### Windows（双击即可）
 
 - **`start-daemon.bat`** — 前台启动守护进程，日志实时打印（Ctrl+C 停止）。可带端口：`start-daemon.bat 8899`。
-- **`manage.bat`** — 管理控制台：**不带参数**进入交互菜单（加主机/删主机/列表/测试/会话/配置/自检）；**带参数**则原样透传给 CLI，例如 `manage.bat host add --name web --host 1.2.3.4 --user root --auth key --key %USERPROFILE%\.ssh\id_ed25519`。
+- **`start-oneshot.bat`** — **一次性模式**（见下），临时、随机、免登录，退出即清理。
+- **`manage.bat`** — 管理控制台：**不带参数**进入交互菜单（加主机/删主机/列表/测试/会话/配置/自检/连接 CF）；**带参数**则原样透传给 CLI，例如 `manage.bat host add --name web --host 1.2.3.4 --user root --auth key --key %USERPROFILE%\.ssh\id_ed25519`。
 
 > 菜单逻辑在 TypeScript（`sshmcp menu`）里，bat 只做透传，不在 bat 写复杂逻辑。
+
+### 一次性模式 vs 正常模式
+
+| | 正常模式 `start-daemon.bat` | 一次性模式 `start-oneshot.bat` |
+|---|---|---|
+| 本地端口 | 固定（默认 8765，可配） | **随机**（每次不同） |
+| Key | 固定（`sshmcp config` 可查） | **随机**（仅在控制台打印一次，不落盘） |
+| 公网入口 | 手动/默认开 CF 隧道；可选 quick 或**自定义域名(named)** | **强制免登录临时域名**（每次新 URL，出现登录也强制临时） |
+| 持久化 | hosts/vault/known_hosts/审计 | **仅 known_hosts**（主机密钥）；其余全在临时目录，退出即删 |
+| 运行方式 | 可前台或系统服务 | **只能前台**；`SSHMCP_SERVICE=1` 时直接拒绝 |
+| 清理 | — | 退出时杀隧道、删临时目录，不留凭据 |
+
+> 一次性模式复用正常模式已登记的主机与密钥（只读载入），不会改动主配置。
+
+正常模式自定义域名：`manage.bat → 10 → 5` 设定 `https://你的域名`（需自己把域名 CNAME 到 CF tunnel，并 `cloudflared service install <token>` 或设 `SSHMCP_CF_TUNNEL=<tunnel名>`）。一次性模式永远走临时域名，忽略这些设置。
 
 ### 命令行（跨平台）
 
@@ -123,8 +139,10 @@ sshmcp session list
 sshmcp config
 sshmcp menu
 sshmcp daemon [--port 8765] [--foreground]
+sshmcp daemon --oneshot --foreground      # 一次性模式（随机端口/key，免登录临时隧道）
 sshmcp service install|status
 sshmcp vault-selftest
+sshmcp cf status|start|stop|auto on|off|mode quick|mode named <https-url>
 ```
 
 ## 数据与安全

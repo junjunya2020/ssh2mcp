@@ -66,6 +66,10 @@ export interface AppConfig {
   strictHostKey: boolean;
   /** daemon 启动时是否自动拉起一个全新的免登录 CF 隧道（每次启动都是新 URL） */
   tunnelAutoStart?: boolean;
+  /** quick=免登录临时隧道（每次新域名）；named=自定义域名（需 CF 绑 DNS，走 token 配置） */
+  tunnelMode?: "quick" | "named";
+  /** named 模式的自定义公网地址，如 https://mcp.example.com */
+  tunnelCustomUrl?: string;
   dataDir: string;
 }
 
